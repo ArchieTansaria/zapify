@@ -1,6 +1,13 @@
 type Mutation {
-  triggerWorkflowRun(workflow_id: uuid!): TriggerWorkflowRunResult!
-  approveStep(step_run_id: uuid!): ApproveStepResult!
+  approveStep(
+    step_run_id: uuid!
+  ): ApproveStepResult!
+}
+
+type Mutation {
+  triggerWorkflowRun(
+    workflow_id: uuid!
+  ): TriggerWorkflowRunResult!
 }
 
 type TriggerWorkflowRunResult {
@@ -12,3 +19,4 @@ type TriggerWorkflowRunResult {
 type ApproveStepResult {
   success: Boolean!
 }
+

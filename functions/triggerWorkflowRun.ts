@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { runWorkflow } from './workflow/runner';
 
 const GRAPHQL_URL = process.env.HASURA_GRAPHQL_GRAPHQL_URL || 'http://graphql:8080/v1/graphql';
 const ADMIN_SECRET = process.env.NHOST_ADMIN_SECRET as string;
@@ -52,6 +53,7 @@ export default async (req: Request, res: Response) => {
           id
           org_id
           organization {
+            id
             quota_limit
             quota_used
             org_members(where: {user_id: {_eq: $user_id}}) {
@@ -118,6 +120,12 @@ export default async (req: Request, res: Response) => {
     });
 
     const run = mutationData.insert_workflow_runs_one;
+
+    // 3. Execute Workflow Synchronously for this milestone
+    // Note: To prevent timeouts on very long workflows, we don't strictly await it and block the response.
+    // However, Node in Nhost functions handles Promises nicely if we just execute it.
+    // We will await it to ensure we don't orphan the execution if the container freezes.
+    await runWorkflow(run.id, workflow.id, workflow.organization.id);
 
     return res.status(200).json({
       success: true,
