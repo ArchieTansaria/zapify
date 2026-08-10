@@ -1,0 +1,8 @@
+table:
+  name: org_usage_stats
+  schema: public
+configuration:
+  column_config: {}
+  custom_column_names: {}
+  custom_name: org_usage_stats
+  custom_root_fields: {}

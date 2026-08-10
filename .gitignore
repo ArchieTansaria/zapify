@@ -1,0 +1,18 @@
+.nhost
+.secrets
+
+# Next.js
+web/node_modules
+web/.next
+web/out
+
+# Nhost functions
+functions/node_modules
+
+# Environment
+.env
+.env.local
+*.env
+
+# OS
+.DS_Store
