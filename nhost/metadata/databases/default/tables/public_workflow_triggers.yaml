@@ -81,7 +81,28 @@ update_permissions:
                             _eq: editor
               - trigger_type:
                   _neq: webhook
-      check: null
+      check:
+        _or:
+          - _and:
+              - workflow:
+                  organization:
+                    org_members:
+                      _and:
+                        - user_id:
+                            _eq: X-Hasura-User-Id
+                        - role:
+                            _eq: owner
+          - _and:
+              - workflow:
+                  organization:
+                    org_members:
+                      _and:
+                        - user_id:
+                            _eq: X-Hasura-User-Id
+                        - role:
+                            _eq: editor
+              - trigger_type:
+                  _neq: webhook
 delete_permissions:
   - role: user
     permission:
