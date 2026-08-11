@@ -21,7 +21,7 @@ async function getTokens() {
   ids['Alice'] = "11111111-1111-1111-1111-111111111111"; // Owner
   ids['Bob'] = "22222222-2222-2222-2222-222222222222"; // Editor
   ids['Carol'] = "33333333-3333-3333-3333-333333333333"; // Viewer
-  ids['Dave'] = "44444444-4444-4444-4444-444444444444"; // Org B Owner
+  ids['Dave'] = "a9c6a945-8e89-4c47-a796-076f6fd20b84"; // Org B Owner
   
   tokens['Alice'] = generateJWT(ids['Alice']);
   tokens['Bob'] = generateJWT(ids['Bob']);

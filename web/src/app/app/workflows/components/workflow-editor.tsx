@@ -127,8 +127,12 @@ export function WorkflowEditor({ initialWorkflow, onSaved }: WorkflowEditorProps
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-12">
-      <WorkflowToolbar 
+    <div className="relative min-h-[calc(100vh-4rem)]">
+      <div className="absolute inset-0 z-[-1] bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1f2937_1px,transparent_1px)] [background-size:20px_20px] opacity-50" />
+      <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background to-transparent z-[-1]" />
+      
+      <div className="max-w-4xl mx-auto space-y-10 pb-16 pt-6 px-4">
+        <WorkflowToolbar 
         name={initialWorkflow.name}
         isDraft={!initialWorkflow.is_active}
         updatedAt={initialWorkflow.updated_at}
@@ -142,59 +146,70 @@ export function WorkflowEditor({ initialWorkflow, onSaved }: WorkflowEditorProps
 
       <div className="space-y-6">
         {/* Trigger Section */}
-        <div className="space-y-4">
+        <div className="space-y-4 relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold tracking-wider uppercase text-muted-foreground">Trigger</h2>
+            <h2 className="text-sm font-bold tracking-widest uppercase text-muted-foreground/70">Trigger</h2>
           </div>
           
           <div 
-            className={`border border-dashed rounded-lg p-6 flex flex-col items-center justify-center bg-card/50 transition-colors ${canEdit ? 'hover:bg-muted/30 cursor-pointer' : ''}`}
+            className={`group relative overflow-hidden border rounded-xl p-6 flex flex-col items-center justify-center bg-card/60 backdrop-blur-sm shadow-sm transition-all duration-300 ease-out ${canEdit ? 'hover:shadow-md hover:border-primary/50 cursor-pointer hover:-translate-y-0.5' : ''}`}
             onClick={() => setIsTriggerEditorOpen(true)}
           >
+            {/* Subtle glow effect on hover */}
+            {canEdit && <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />}
+            
             {triggers.length === 0 ? (
-              <p className="text-muted-foreground text-sm font-medium">No trigger configured</p>
+              <p className="text-muted-foreground text-sm font-medium relative z-10">No trigger configured</p>
             ) : (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary">
-                  <Zap className="h-4 w-4" />
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 text-primary shadow-inner">
+                  <Zap className="h-5 w-5" />
                 </div>
-                <p className="font-medium capitalize">{triggers[0].trigger_type} Trigger</p>
+                <p className="font-semibold text-lg capitalize tracking-tight">{triggers[0].trigger_type.replace('_', ' ')} Trigger</p>
               </div>
             )}
           </div>
         </div>
 
-        <div className="flex justify-center">
-          <div className="w-px h-6 bg-border"></div>
+        <div className="flex justify-center relative z-0">
+          <div className="w-px h-10 bg-gradient-to-b from-border to-border/30"></div>
         </div>
 
         {/* Steps Section */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold tracking-wider uppercase text-muted-foreground">Steps</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-sm font-bold tracking-widest uppercase text-muted-foreground/70">Steps</h2>
           </div>
 
-          <div className="relative pl-4 space-y-4 before:absolute before:inset-y-0 before:left-[2.1rem] before:w-px before:bg-border before:-z-10">
+          <div className="relative pl-5 sm:pl-8 space-y-5 before:absolute before:inset-y-0 before:left-[1.8rem] sm:before:left-[2.5rem] before:w-px before:bg-gradient-to-b before:from-border before:via-border/50 before:to-transparent before:-z-10">
             {steps.map((step, idx) => (
-              <WorkflowStepCard 
-                key={step.id}
-                step={step}
-                index={idx}
-                totalSteps={steps.length}
-                canEdit={canEdit}
-                onEdit={() => {
-                  setActiveStep(step)
-                  setIsStepEditorOpen(true)
-                }}
-                onMoveUp={() => handleMoveStep(idx, 'up')}
-                onMoveDown={() => handleMoveStep(idx, 'down')}
-                onDelete={() => handleDeleteStep(step.id)}
-              />
+              <div 
+                key={step.id} 
+                className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
+                style={{ animationDelay: `${(idx + 1) * 100}ms` }}
+              >
+                <WorkflowStepCard 
+                  step={step}
+                  index={idx}
+                  totalSteps={steps.length}
+                  canEdit={canEdit}
+                  onEdit={() => {
+                    setActiveStep(step)
+                    setIsStepEditorOpen(true)
+                  }}
+                  onMoveUp={() => handleMoveStep(idx, 'up')}
+                  onMoveDown={() => handleMoveStep(idx, 'down')}
+                  onDelete={() => handleDeleteStep(step.id)}
+                />
+              </div>
             ))}
             
-            <div className="relative flex items-center gap-4 pt-2">
-              <div className="flex items-center justify-center h-7 w-7 rounded-full bg-background border-2 border-dashed border-muted-foreground z-10 shrink-0">
-                <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+            <div 
+              className="relative flex items-center gap-5 pt-4 animate-in fade-in duration-500 fill-mode-both"
+              style={{ animationDelay: `${(steps.length + 1) * 100}ms` }}
+            >
+              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-card border-2 border-dashed border-primary/30 z-10 shrink-0 shadow-sm">
+                <div className="h-2 w-2 rounded-full bg-primary/40 animate-pulse" />
               </div>
               <AddStepMenu 
                 disabled={!canEdit}
@@ -224,6 +239,7 @@ export function WorkflowEditor({ initialWorkflow, onSaved }: WorkflowEditorProps
         onSave={handleSaveTriggers}
         canEdit={canEdit}
       />
+    </div>
     </div>
   )
 }

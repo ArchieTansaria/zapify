@@ -11,6 +11,19 @@ object_relationships:
   - name: workflow
     using:
       foreign_key_constraint_on: workflow_id
+insert_permissions:
+  - role: user
+    permission:
+      check:
+        organization:
+          org_members:
+            user_id:
+              _eq: X-Hasura-User-Id
+      columns:
+        - data
+        - step_run_id
+        - workflow_id
+        - org_id
 select_permissions:
   - role: user
     permission:
@@ -27,3 +40,21 @@ select_permissions:
           org_members:
             user_id:
               _eq: X-Hasura-User-Id
+event_triggers:
+  - name: dbevent_workflow_custom_data
+    definition:
+      delete:
+        columns: '*'
+      enable_manual: false
+      insert:
+        columns: '*'
+      update:
+        columns: '*'
+    retry_conf:
+      interval_sec: 10
+      num_retries: 0
+      timeout_sec: 60
+    webhook: '{{NHOST_FUNCTIONS_URL}}/handleDatabaseEvent'
+    headers:
+      - name: x-nhost-webhook-secret
+        value_from_env: NHOST_WEBHOOK_SECRET

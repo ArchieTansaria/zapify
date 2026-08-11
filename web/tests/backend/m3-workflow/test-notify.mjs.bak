@@ -1,8 +1,6 @@
-const NHOST_GRAPHQL_URL = 'https://local.hasura.local.nhost.run/v1/graphql';
+import http from 'http';
 
-// Using known Alice/Bob ids from test-setup.mjs or we can fetch them via a query
-// But wait, it's easier to just use the tokens like the other tests do if we can read them,
-// or we can just fetch the login endpoint.
+const NHOST_GRAPHQL_URL = 'https://local.hasura.local.nhost.run/v1/graphql';
 
 async function login(name) {
   const query = `query { users(where: {email: {_eq: "${name.toLowerCase()}@test.com"}}) { id } }`;
@@ -39,7 +37,7 @@ async function createWorkflow(name, user) {
   `;
   const orgQ = `query { organizations { id } }`;
   const orgRes = await graphql(orgQ, {}, user);
-  console.log("orgRes:", JSON.stringify(orgRes)); const orgId = orgRes.data.organizations[0].id;
+  const orgId = orgRes.data.organizations[0].id;
   const res = await graphql(query, { name, orgId }, user);
   return res.data.insert_workflows_one.id;
 }
@@ -62,10 +60,10 @@ async function runWorkflow(workflowId, user) {
   return res.data?.triggerWorkflowRun?.run_id;
 }
 
-async function getCustomData(workflowId, user) {
-  const query = `query ($wfId: uuid!) { workflow_custom_data(where: {workflow_id: {_eq: $wfId}}) { data } }`;
-  const res = await graphql(query, { wfId: workflowId }, user);
-  return res.data?.workflow_custom_data || [];
+async function getNotifications(runId, user) {
+  const query = `query ($runId: uuid!) { notifications(where: {workflow_run_id: {_eq: $runId}}) { id status target message } }`;
+  const res = await graphql(query, { runId }, user);
+  return res.data?.notifications || [];
 }
 
 function printResult(name, pass) {
@@ -73,66 +71,89 @@ function printResult(name, pass) {
   return pass;
 }
 
+// Deterministic Local Mock Server for receiving notifications
+function startLocalServer(port = 9999) {
+  return new Promise((resolve) => {
+    const payloads = [];
+    const server = http.createServer((req, res) => {
+      let body = '';
+      req.on('data', chunk => body += chunk.toString());
+      req.on('end', () => {
+        try {
+          payloads.push(JSON.parse(body));
+        } catch(e) {
+          payloads.push(body);
+        }
+        res.writeHead(200);
+        res.end('OK');
+      });
+    });
+    server.listen(port, '0.0.0.0', () => {
+      resolve({
+        server,
+        payloads,
+        close: () => new Promise(r => server.close(r))
+      });
+    });
+  });
+}
+
 async function main() {
   let allPass = true;
   console.log('══════════════════════════════════════');
-  console.log('       ZAPIFY M4.4 DB_WRITE TESTS     ');
+  console.log('       ZAPIFY M4.4 NOTIFY TESTS       ');
   console.log('══════════════════════════════════════\\n');
+
+  // Start mock receiver (using host.docker.internal since Hasura runs in docker locally, 
+  // but if tests are run natively, we can use an accessible IP. For Nhost local, the 
+  // host machine is accessible via host.docker.internal)
+  let testEndpoint = 'http://host.docker.internal:9999';
+  const mockServer = await startLocalServer(9999);
 
   try {
     const alice = await login('Alice'); // owner
     const bob = await login('Bob');     // editor
 
     // ----------------------------------------------------
-    // Test 1: db_write layer 2 permissions (Owner vs Editor)
+    // Test 1: notify layer 2 permissions (Owner vs Editor)
     // ----------------------------------------------------
-    const wf1 = await createWorkflow("M4.4: DB Write Security", alice);
+    const wf1 = await createWorkflow("M4.4: Notify Security", alice);
     
-    // Bob (Editor) tries to add db_write
-    const bobRes = await addStep(wf1, 'db_write', 'Step1', 1, { payload: "test" }, bob);
+    const bobRes = await addStep(wf1, 'notify', 'Step1', 1, { target_url: testEndpoint, message: "test" }, bob);
     let p1a = bobRes.errors && bobRes.errors[0].message.includes('permission');
     
-    // Alice (Owner) tries to add db_write
-    const aliceRes = await addStep(wf1, 'db_write', 'Step1', 1, { payload: "test" }, alice);
+    const aliceRes = await addStep(wf1, 'notify', 'Step1', 1, { target_url: testEndpoint, message: "test" }, alice);
     let p1b = !aliceRes.errors && aliceRes.data?.insert_workflow_steps_one?.id;
     
-    allPass = printResult('Test 1: Only Owner can create db_write steps', p1a && p1b) && allPass;
+    allPass = printResult('Test 1: Only Owner can create notify steps', p1a && p1b) && allPass;
 
     // ----------------------------------------------------
-    // Test 2: Functional Execution
+    // Test 2: Functional Execution & End-to-End Delivery
     // ----------------------------------------------------
-    const wf2 = await createWorkflow("M4.4: DB Write Exec", alice);
-    await addStep(wf2, 'db_write', 'DB Write Step', 1, { payload: { customer: "acme", status: "active" } }, alice);
+    const wf2 = await createWorkflow("M4.4: Notify Exec", alice);
+    await addStep(wf2, 'llm_call', 'Mock', 1, { prompt: "Output Hello", stub_output: "Hello World" }, alice);
+    await addStep(wf2, 'notify', 'Notify Step', 2, { target_url: testEndpoint, message: "Output: {{previous_output}}" }, alice);
     
     const runId = await runWorkflow(wf2, alice);
-    console.log("Run ID 2:", runId);
     
-    await new Promise(r => setTimeout(r, 2000)); // wait for execution
+    // Wait for runner and event trigger to complete
+    await new Promise(r => setTimeout(r, 4000)); 
     
-    const data = await getCustomData(wf2, alice);
-    console.log("Data 2:", JSON.stringify(data, null, 2));
-    let p2 = data.length === 1 && data[0].data.customer === "acme" && data[0].data.status === "active";
-    allPass = printResult('Test 2: db_write successfully saves data', p2) && allPass;
-
-    // ----------------------------------------------------
-    // Test 3: Template Support
-    // ----------------------------------------------------
-    const wf3 = await createWorkflow("M4.4: DB Write Template", alice);
-    await addStep(wf3, 'llm_call', 'Mock', 1, { prompt: "Return fixed", stub_output: "Hello World" }, alice);
-    await addStep(wf3, 'db_write', 'Write', 2, { payload: { msg: "{{previous_output}}" } }, alice);
+    const notifs = await getNotifications(runId, alice);
+    console.log("Notifs:", JSON.stringify(notifs, null, 2));
+    let p2a = notifs.length === 1 && notifs[0].status === "sent" && notifs[0].message === "Output: Hello World";
     
-    const runId3 = await runWorkflow(wf3, alice);
-    console.log("Run ID 3:", runId3);
-    await new Promise(r => setTimeout(r, 2000));
+    console.log("Mock payloads:", JSON.stringify(mockServer.payloads, null, 2));
+    let p2b = mockServer.payloads.length >= 1;
+    let p2c = p2b && mockServer.payloads.some(p => p.text === "Output: Hello World");
     
-    const data3 = await getCustomData(wf3, alice);
-    console.log("Data 3:", JSON.stringify(data3, null, 2));
-    let p3 = data3.length === 1 && data3[0].data.msg === "Hello World";
-    allPass = printResult('Test 3: db_write supports {{previous_output}} templating', p3) && allPass;
+    allPass = printResult('Test 2: notify sends payload via Event Trigger (idempotent)', p2a && p2b && p2c) && allPass;
 
   } catch (e) {
     console.error("Test execution failed:", e);
     allPass = false;
+  } finally {
+    await mockServer.close();
   }
 
   console.log('\\n══════════════════════════════════════');

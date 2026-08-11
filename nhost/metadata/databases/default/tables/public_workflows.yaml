@@ -90,3 +90,21 @@ delete_permissions:
                   _eq: X-Hasura-User-Id
               - role:
                   _eq: owner
+event_triggers:
+  - name: dbevent_workflows
+    definition:
+      delete:
+        columns: '*'
+      enable_manual: false
+      insert:
+        columns: '*'
+      update:
+        columns: '*'
+    retry_conf:
+      interval_sec: 10
+      num_retries: 0
+      timeout_sec: 60
+    webhook: '{{NHOST_FUNCTIONS_URL}}/handleDatabaseEvent'
+    headers:
+      - name: x-nhost-webhook-secret
+        value_from_env: NHOST_WEBHOOK_SECRET

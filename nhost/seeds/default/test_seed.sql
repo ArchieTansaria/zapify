@@ -3,12 +3,12 @@
 -- Insert users into auth.users (simplistic insert for testing purposes)
 -- Note: In a real Nhost app, users are managed by the auth service. 
 -- For our backend tests, we just need their IDs to exist so foreign keys work.
-INSERT INTO auth.users (id, email, password_hash, default_role, locale)
+INSERT INTO auth.users (id, email, password_hash, default_role, locale, email_verified)
 VALUES
-  ('11111111-1111-1111-1111-111111111111', 'alice@test.com', 'dummy', 'user', 'en'),
-  ('22222222-2222-2222-2222-222222222222', 'bob@test.com', 'dummy', 'user', 'en'),
-  ('33333333-3333-3333-3333-333333333333', 'carol@test.com', 'dummy', 'user', 'en'),
-  ('44444444-4444-4444-4444-444444444444', 'dave@test.com', 'dummy', 'user', 'en')
+  ('11111111-1111-1111-1111-111111111111', 'alice@test.com', '$2b$10$SbWhhRaIJKYy3upCLIu1g.RB2k3RJskmguNRLW6RalvbCBJk1f0ay', 'user', 'en', true),
+  ('22222222-2222-2222-2222-222222222222', 'bob@test.com', '$2b$10$SbWhhRaIJKYy3upCLIu1g.RB2k3RJskmguNRLW6RalvbCBJk1f0ay', 'user', 'en', true),
+  ('33333333-3333-3333-3333-333333333333', 'carol@test.com', '$2b$10$SbWhhRaIJKYy3upCLIu1g.RB2k3RJskmguNRLW6RalvbCBJk1f0ay', 'user', 'en', true),
+  ('44444444-4444-4444-4444-444444444444', 'dave@test.com', '$2b$10$SbWhhRaIJKYy3upCLIu1g.RB2k3RJskmguNRLW6RalvbCBJk1f0ay', 'user', 'en', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert organizations

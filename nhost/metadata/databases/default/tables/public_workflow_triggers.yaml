@@ -128,3 +128,19 @@ delete_permissions:
                             _eq: editor
               - trigger_type:
                   _neq: webhook
+event_triggers:
+  - name: on_trigger_changed
+    definition:
+      enable_manual: false
+      insert:
+        columns: '*'
+      update:
+        columns: '*'
+    retry_conf:
+      interval_sec: 10
+      num_retries: 0
+      timeout_sec: 60
+    webhook: '{{NHOST_FUNCTIONS_URL}}/syncScheduledTrigger'
+    headers:
+      - name: x-nhost-webhook-secret
+        value_from_env: NHOST_WEBHOOK_SECRET

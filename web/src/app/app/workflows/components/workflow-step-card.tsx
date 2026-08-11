@@ -1,4 +1,4 @@
-import { Bot, Globe, GitBranch, CheckCircle, MoreVertical, Settings, ArrowUp, ArrowDown, Trash } from "lucide-react"
+import { Bot, Globe, GitBranch, CheckCircle, MoreVertical, Settings, ArrowUp, ArrowDown, Trash, Database, Bell } from "lucide-react"
 import { WorkflowStep } from "@/lib/graphql/workflows"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,14 +24,18 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
   llm_call: <Bot className="h-5 w-5" />,
   http_request: <Globe className="h-5 w-5" />,
   conditional_branch: <GitBranch className="h-5 w-5" />,
-  approval_gate: <CheckCircle className="h-5 w-5" />
+  approval_gate: <CheckCircle className="h-5 w-5" />,
+  db_write: <Database className="h-5 w-5" />,
+  notify: <Bell className="h-5 w-5" />
 }
 
 const STEP_LABELS: Record<string, string> = {
   llm_call: "LLM Call",
   http_request: "HTTP Request",
   conditional_branch: "Conditional Branch",
-  approval_gate: "Approval Gate"
+  approval_gate: "Approval Gate",
+  db_write: "Database Write",
+  notify: "Notification"
 }
 
 export function WorkflowStepCard({
@@ -62,6 +66,11 @@ export function WorkflowStepCard({
     configSummary = `If ${src} ${op.replace('_', ' ')} "${val}"`
   } else if (step.step_type === "approval_gate") {
     configSummary = "Requires manual approval to proceed"
+  } else if (step.step_type === "db_write") {
+    configSummary = "Write to database"
+  } else if (step.step_type === "notify") {
+    const target = step.config.target_url ? "webhook" : "unconfigured"
+    configSummary = `Send notification to ${target}`
   }
 
   return (
@@ -73,12 +82,12 @@ export function WorkflowStepCard({
       </div>
       
       <div 
-        className={`flex-1 border rounded-md p-4 bg-card shadow-sm transition-all ${canEdit ? 'hover:shadow-md hover:border-primary/50 cursor-pointer' : ''}`}
+        className={`flex-1 border rounded-xl p-5 bg-card/60 backdrop-blur-sm shadow-sm transition-all duration-200 ease-out group-hover:shadow-md ${canEdit ? 'hover:-translate-y-0.5 hover:border-primary/50 cursor-pointer hover:bg-card/90' : ''}`}
         onClick={() => canEdit && onEdit()}
       >
         <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 text-muted-foreground p-1.5 bg-muted rounded-md">
+          <div className="flex items-start gap-3.5">
+            <div className="mt-0.5 text-foreground/80 p-2 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg border border-primary/10 shadow-inner">
               {STEP_ICONS[step.step_type] || <Bot className="h-5 w-5" />}
             </div>
             <div>

@@ -17,7 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Zap, Hand, Webhook } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Zap, Hand, Webhook, Clock, Database } from "lucide-react"
 
 interface TriggerEditorProps {
   triggers: WorkflowTrigger[]
@@ -66,7 +67,7 @@ export function TriggerEditor({
     setDraftTrigger({
       id: draftTrigger?.id || "draft",
       trigger_type: val,
-      config: {},
+      config: val === "database_event" ? { table: "workflow_custom_data", operation: "INSERT" } : (val === "scheduled" ? { cron: "*/5 * * * *" } : {}),
       is_active: true
     })
   }
@@ -115,6 +116,18 @@ export function TriggerEditor({
                         Manual
                       </div>
                     </SelectItem>
+                    <SelectItem value="scheduled">
+                      <div className="flex items-center">
+                        <Clock className="h-4 w-4 mr-2" />
+                        Scheduled
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="database_event">
+                      <div className="flex items-center">
+                        <Database className="h-4 w-4 mr-2" />
+                        Database Event
+                      </div>
+                    </SelectItem>
                     <SelectItem value="webhook" disabled>
                       <div className="flex items-center">
                         <Webhook className="h-4 w-4 mr-2" />
@@ -127,6 +140,64 @@ export function TriggerEditor({
                   <p className="text-xs text-muted-foreground mt-2">
                     Webhook triggers require secure server-side secret generation and cannot be modified from the builder yet.
                   </p>
+                )}
+                
+                {draftTrigger.trigger_type === "scheduled" && (
+                  <div className="pt-4 space-y-2">
+                    <Label>Cron Expression</Label>
+                    <Input 
+                      value={(draftTrigger.config.cron as string) || ""}
+                      onChange={(e) => setDraftTrigger({
+                        ...draftTrigger,
+                        config: { ...draftTrigger.config, cron: e.target.value }
+                      })}
+                      placeholder="*/5 * * * *"
+                      disabled={!canEdit}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Supports standard cron format (e.g. <code>*/5 * * * *</code> for every 5 minutes).
+                    </p>
+                  </div>
+                )}
+
+                {draftTrigger.trigger_type === "database_event" && (
+                  <div className="pt-4 space-y-4">
+                    <div className="space-y-2">
+                      <Label>Watched Table</Label>
+                      <Select 
+                        value={(draftTrigger.config.table as string) || ""}
+                        onValueChange={(val) => setDraftTrigger({
+                          ...draftTrigger,
+                          config: { ...draftTrigger.config, table: val }
+                        })}
+                        disabled={!canEdit}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select a table" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="workflow_custom_data">workflow_custom_data</SelectItem>
+                          <SelectItem value="workflows">workflows</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Operation</Label>
+                      <Select 
+                        value={(draftTrigger.config.operation as string) || ""}
+                        onValueChange={(val) => setDraftTrigger({
+                          ...draftTrigger,
+                          config: { ...draftTrigger.config, operation: val }
+                        })}
+                        disabled={!canEdit}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select an operation" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="INSERT">INSERT</SelectItem>
+                          <SelectItem value="UPDATE">UPDATE</SelectItem>
+                          <SelectItem value="DELETE">DELETE</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 )}
               </div>
 

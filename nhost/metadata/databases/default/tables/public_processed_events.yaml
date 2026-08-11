@@ -1,0 +1,3 @@
+table:
+  name: processed_events
+  schema: public

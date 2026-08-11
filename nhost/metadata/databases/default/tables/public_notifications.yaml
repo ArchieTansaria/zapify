@@ -8,20 +8,6 @@ object_relationships:
   - name: workflow_run
     using:
       foreign_key_constraint_on: workflow_run_id
-event_triggers:
-  - name: notification_inserted
-    definition:
-      enable_manual: false
-      insert:
-        columns: "*"
-    retry_conf:
-      interval_sec: 10
-      num_retries: 2
-      timeout_sec: 60
-    webhook: "{{NHOST_FUNCTIONS_URL}}/handleNotificationEvent"
-    headers:
-      - name: x-nhost-webhook-secret
-        value_from_env: NHOST_WEBHOOK_SECRET
 select_permissions:
   - role: user
     permission:
@@ -39,3 +25,17 @@ select_permissions:
           org_members:
             user_id:
               _eq: X-Hasura-User-Id
+event_triggers:
+  - name: notification_inserted
+    definition:
+      enable_manual: false
+      insert:
+        columns: '*'
+    retry_conf:
+      interval_sec: 10
+      num_retries: 2
+      timeout_sec: 60
+    webhook: '{{NHOST_FUNCTIONS_URL}}/handleNotificationEvent'
+    headers:
+      - name: x-nhost-webhook-secret
+        value_from_env: NHOST_WEBHOOK_SECRET

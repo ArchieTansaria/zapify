@@ -4,24 +4,19 @@ const NHOST_GRAPHQL_URL = 'https://local.hasura.local.nhost.run/v1/graphql';
 // But wait, it's easier to just use the tokens like the other tests do if we can read them,
 // or we can just fetch the login endpoint.
 
-async function login(name) {
-  const query = `query { users(where: {email: {_eq: "${name.toLowerCase()}@test.com"}}) { id } }`;
-  const res = await fetch(NHOST_GRAPHQL_URL, {
+async function login(name, password = 'password123') {
+  const res = await fetch('https://local.auth.local.nhost.run/v1/signin/email-password', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-hasura-admin-secret': 'nhost-admin-secret' },
-    body: JSON.stringify({ query })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: `${name.toLowerCase()}@test.com`, password })
   });
   const data = await res.json();
-  return { id: data.data.users[0].id };
+  return { token: data.session?.accessToken, id: data.session?.user?.id };
 }
 
 async function graphql(query, variables = {}, user = null) {
   const headers = { 'Content-Type': 'application/json' };
-  if (user && user.id) {
-    headers['x-hasura-admin-secret'] = 'nhost-admin-secret';
-    headers['x-hasura-role'] = 'user';
-    headers['x-hasura-user-id'] = user.id;
-  }
+  if (user && user.token) headers['Authorization'] = `Bearer ${user.token}`;
   
   const res = await fetch(NHOST_GRAPHQL_URL, {
     method: 'POST',
@@ -39,7 +34,7 @@ async function createWorkflow(name, user) {
   `;
   const orgQ = `query { organizations { id } }`;
   const orgRes = await graphql(orgQ, {}, user);
-  console.log("orgRes:", JSON.stringify(orgRes)); const orgId = orgRes.data.organizations[0].id;
+  const orgId = orgRes.data.organizations[0].id;
   const res = await graphql(query, { name, orgId }, user);
   return res.data.insert_workflows_one.id;
 }
