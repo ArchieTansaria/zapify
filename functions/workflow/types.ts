@@ -26,6 +26,7 @@ export interface StepRun {
 export interface ExecutionContext {
   workflowRunId: string;
   workflowId: string;
+  orgId: string;
   previousOutput: any;
   steps: Record<string, { input: any; output: any; status: string }>;
   pendingJoin?: string;

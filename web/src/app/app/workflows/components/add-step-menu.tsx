@@ -1,4 +1,4 @@
-import { Plus, Bot, Globe, GitBranch, CheckCircle } from "lucide-react"
+import { Plus, Bot, Globe, GitBranch, CheckCircle, Database, Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -12,9 +12,10 @@ import { WorkflowStep } from "@/lib/graphql/workflows"
 interface AddStepMenuProps {
   onAddStep: (step: WorkflowStep) => void
   disabled?: boolean
+  userRole?: string
 }
 
-export function AddStepMenu({ onAddStep, disabled }: AddStepMenuProps) {
+export function AddStepMenu({ onAddStep, disabled, userRole }: AddStepMenuProps) {
   const handleAdd = (type: string, name: string, initialConfig: Record<string, unknown> = {}) => {
     onAddStep({
       id: crypto.randomUUID(), // Temporary ID for draft
@@ -50,6 +51,19 @@ export function AddStepMenu({ onAddStep, disabled }: AddStepMenuProps) {
           <CheckCircle className="h-4 w-4 mr-2 text-primary" />
           Approval Gate
         </DropdownMenuItem>
+        
+        {userRole === 'owner' && (
+          <>
+            <DropdownMenuItem onClick={() => handleAdd("db_write", "Database Write", { payload: "{{previous_output}}" })}>
+              <Database className="h-4 w-4 mr-2 text-primary" />
+              Database Write
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleAdd("notify", "Notification", { target_url: "", message: "Workflow completed!" })}>
+              <Bell className="h-4 w-4 mr-2 text-primary" />
+              Notification
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

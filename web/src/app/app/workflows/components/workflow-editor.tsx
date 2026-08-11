@@ -198,6 +198,7 @@ export function WorkflowEditor({ initialWorkflow, onSaved }: WorkflowEditorProps
               </div>
               <AddStepMenu 
                 disabled={!canEdit}
+                userRole={currentUserRole || undefined}
                 onAddStep={(step) => {
                   setActiveStep({ ...step, step_order: steps.length })
                   setIsStepEditorOpen(true)

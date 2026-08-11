@@ -281,6 +281,52 @@ export function WorkflowStepEditor({
           </div>
         )
         
+      case "db_write":
+        return (
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Payload (JSON)</Label>
+              <Textarea 
+                value={typeof draft.config.payload === 'string' ? draft.config.payload : JSON.stringify(draft.config.payload, null, 2)}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateConfig("payload", e.target.value)}
+                placeholder={'{\n  "result": "{{previous_output}}"\n}'}
+                rows={10}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter JSON payload to write. Use <code>{`{{previous_output}}`}</code> to inject the previous step&apos;s output.
+              </p>
+            </div>
+          </div>
+        )
+
+      case "notify":
+        return (
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Target Webhook URL</Label>
+              <Input 
+                value={(draft.config.target_url as string) || ""}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateConfig("target_url", e.target.value)}
+                placeholder="https://hooks.slack.com/services/..."
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Message</Label>
+              <Textarea 
+                value={(draft.config.message as string) || ""}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateConfig("message", e.target.value)}
+                placeholder="Workflow completed successfully."
+                rows={5}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Supports <code>{`{{previous_output}}`}</code> template.
+              </p>
+            </div>
+          </div>
+        )
+        
       default:
         return null
     }

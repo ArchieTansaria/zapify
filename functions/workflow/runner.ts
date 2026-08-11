@@ -3,6 +3,8 @@ import { loadWorkflowSteps, createStepRun, updateStepRun, completeWorkflowRun, f
 import { executeLLM } from './executors/llm';
 import { executeHttp } from './executors/http';
 import { executeConditional } from './executors/conditional';
+import { executeDbWrite } from './executors/db';
+import { executeNotify } from './executors/notify';
 import { executeWithRetry } from './retry';
 
 export async function runWorkflow(workflowRunId: string, workflowId: string, orgId: string, resumeFromStepId?: string, initialPayload?: any) {
@@ -16,6 +18,7 @@ export async function runWorkflow(workflowRunId: string, workflowId: string, org
     const ctx: ExecutionContext = {
       workflowRunId,
       workflowId,
+      orgId,
       previousOutput: initialPayload || null,
       steps: {}
     };
@@ -86,6 +89,20 @@ export async function runWorkflow(workflowRunId: string, workflowId: string, org
           resultObj = { result: res, attempts: 1 };
         } catch (e: any) {
           resultObj = { error: e.message || 'Conditional eval failed', attempts: 1 };
+        }
+      } else if (step.step_type === 'db_write') {
+        try {
+          const res = await executeDbWrite(step, ctx);
+          resultObj = { result: res, attempts: 1 };
+        } catch (e: any) {
+          resultObj = { error: e.message || 'DB write failed', attempts: 1 };
+        }
+      } else if (step.step_type === 'notify') {
+        try {
+          const res = await executeNotify(step, ctx);
+          resultObj = { result: res, attempts: 1 };
+        } catch (e: any) {
+          resultObj = { error: e.message || 'Notify failed to queue', attempts: 1 };
         }
       } else {
         resultObj = { error: `Unsupported step type: ${step.step_type}`, attempts: 1 };
