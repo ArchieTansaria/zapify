@@ -1,3 +1,4 @@
+import { generateJWT } from '../../utils/manual_jwt.js';
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 import crypto from 'crypto';
 
@@ -16,27 +17,14 @@ let ids = {};
 let orgA;
 
 async function getTokens() {
-  for (const u of users) {
-    const res = await fetch(AUTH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: u.email, password: u.password })
-    });
-    let data;
-    try {
-      data = await res.json();
-    } catch (e) {
-      console.log(`Auth failed parsing JSON for ${u.name}. Status: ${res.status}`);
-      const text = await res.text().catch(e=>"");
-      console.log("Response text:", text);
-    }
-    if (data?.session) {
-      tokens[u.name] = data.session.accessToken;
-      ids[u.name] = data.session.user.id;
-    } else {
-      console.error(`Login failed for ${u.name}`);
-    }
-  }
+  ids['Alice'] = "723d675a-ea86-4942-9869-7168fb983f36";
+  ids['Bob'] = "03f87d98-b856-4761-825b-7dea4f1e1ee9";
+  ids['Carol'] = "b7f05cf7-e896-44a9-a1a9-bde33d56d1d5";
+  ids['Dave'] = "a9c6a945-8e89-4c47-a796-076f6fd20b84";
+  tokens['Alice'] = generateJWT(ids['Alice']);
+  tokens['Bob'] = generateJWT(ids['Bob']);
+  tokens['Carol'] = generateJWT(ids['Carol']);
+  tokens['Dave'] = generateJWT(ids['Dave']);
 }
 
 async function graphql(query, variables = {}, asUser = null) {

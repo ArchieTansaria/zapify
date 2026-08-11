@@ -1,0 +1,118 @@
+--- web/src/lib/graphql/workflows.ts
++++ web/src/lib/graphql/workflows.ts
+@@ -10,6 +10,13 @@
+   updated_at: string
+   workflow_steps?: {
+     id: string
++    step_type: string
++    name: string
++    config: Record<string, unknown>
++    step_order: number
++  }[]
++  workflow_triggers?: {
++    id: string
+     trigger_type: string
++    config: Record<string, unknown>
++    is_active: boolean
+   }[]
+ }
+ 
+@@ -34,9 +41,16 @@
+       updated_at
+       workflow_steps {
+         id
++        step_type
++        name
++        config
++        step_order
+       }
+       workflow_triggers {
++        id
+         trigger_type
++        config
++        is_active
+       }
+     }
+   }
+@@ -137,3 +151,84 @@
+ 
+   return !!(res.body.data as { delete_workflows_by_pk?: unknown })?.delete_workflows_by_pk
+ }
++
++export async function createWorkflowStep(workflowId: string, type: string, name: string, order: number, config: Record<string, unknown> = {}) {
++  const query = `
++    mutation CreateStep($workflowId: uuid!, $type: String!, $name: String!, $order: Int!, $config: jsonb!) {
++      insert_workflow_steps_one(object: { workflow_id: $workflowId, step_type: $type, name: $name, step_order: $order, config: $config }) {
++        id
++      }
++    }
++  `
++  const res = await nhost.graphql.request({ query, variables: { workflowId, type, name, order, config } })
++  if (res.body.errors) throw new Error(res.body.errors[0].message)
++  return (res.body.data as any)?.insert_workflow_steps_one
++}
++
++export async function updateWorkflowStep(id: string, name: string, config: Record<string, unknown>, order: number) {
++  const query = `
++    mutation UpdateStep($id: uuid!, $name: String!, $config: jsonb!, $order: Int!) {
++      update_workflow_steps_by_pk(pk_columns: { id: $id }, _set: { name: $name, config: $config, step_order: $order }) {
++        id
++      }
++    }
++  `
++  const res = await nhost.graphql.request({ query, variables: { id, name, config, order } })
++  if (res.body.errors) throw new Error(res.body.errors[0].message)
++  return (res.body.data as any)?.update_workflow_steps_by_pk
++}
++
++export async function deleteWorkflowStep(id: string) {
++  const query = `
++    mutation DeleteStep($id: uuid!) {
++      delete_workflow_steps_by_pk(id: $id) {
++        id
++      }
++    }
++  `
++  const res = await nhost.graphql.request({ query, variables: { id } })
++  if (res.body.errors) throw new Error(res.body.errors[0].message)
++  return !!(res.body.data as any)?.delete_workflow_steps_by_pk
++}
++
++export async function createWorkflowTrigger(workflowId: string, type: string, config: Record<string, unknown> = {}) {
++  const query = `
++    mutation CreateTrigger($workflowId: uuid!, $type: String!, $config: jsonb!) {
++      insert_workflow_triggers_one(object: { workflow_id: $workflowId, trigger_type: $type, config: $config }) {
++        id
++      }
++    }
++  `
++  const res = await nhost.graphql.request({ query, variables: { workflowId, type, config } })
++  if (res.body.errors) throw new Error(res.body.errors[0].message)
++  return (res.body.data as any)?.insert_workflow_triggers_one
++}
++
++export async function updateWorkflowTrigger(id: string, config: Record<string, unknown>, isActive: boolean = true) {
++  const query = `
++    mutation UpdateTrigger($id: uuid!, $config: jsonb!, $isActive: Boolean!) {
++      update_workflow_triggers_by_pk(pk_columns: { id: $id }, _set: { config: $config, is_active: $isActive }) {
++        id
++      }
++    }
++  `
++  const res = await nhost.graphql.request({ query, variables: { id, config, isActive } })
++  if (res.body.errors) throw new Error(res.body.errors[0].message)
++  return (res.body.data as any)?.update_workflow_triggers_by_pk
++}
++
++export async function deleteWorkflowTrigger(id: string) {
++  const query = `
++    mutation DeleteTrigger($id: uuid!) {
++      delete_workflow_triggers_by_pk(id: $id) {
++        id
++      }
++    }
++  `
++  const res = await nhost.graphql.request({ query, variables: { id } })
++  if (res.body.errors) throw new Error(res.body.errors[0].message)
++  return !!(res.body.data as any)?.delete_workflow_triggers_by_pk
++}

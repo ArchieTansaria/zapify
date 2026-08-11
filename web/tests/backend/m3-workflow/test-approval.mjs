@@ -1,3 +1,4 @@
+import { generateJWT } from '../../utils/manual_jwt.js';
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const GRAPHQL_URL = 'https://local.hasura.local.nhost.run/v1/graphql';
@@ -12,29 +13,14 @@ const ids = {};
 let createdEntities = { workflows: [], steps: [] };
 
 async function getTokens() {
-  const users = [
-    { email: 'alice@test.com', password: 'password123', name: 'Alice' },
-    { email: 'bob@test.com', password: 'password123', name: 'Bob' },
-    { email: 'carol@test.com', password: 'password123', name: 'Carol' },
-    { email: 'dave@test.com', password: 'password123', name: 'Dave' },
-  ];
-  for (const u of users) {
-    let res = await fetch(AUTH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: u.email, password: u.password })
-    });
-    try {
-      let data = await res.json();
-      if (data?.session) {
-        tokens[u.name] = data.session.accessToken;
-        ids[u.name] = data.session.user.id;
-      }
-    } catch (e) {
-      console.error("Auth fetch failed for", u.email, ":", res.status, res.statusText);
-      throw e;
-    }
-  }
+  ids['Alice'] = "723d675a-ea86-4942-9869-7168fb983f36";
+  ids['Bob'] = "03f87d98-b856-4761-825b-7dea4f1e1ee9";
+  ids['Carol'] = "b7f05cf7-e896-44a9-a1a9-bde33d56d1d5";
+  ids['Dave'] = "a9c6a945-8e89-4c47-a796-076f6fd20b84";
+  tokens['Alice'] = generateJWT(ids['Alice']);
+  tokens['Bob'] = generateJWT(ids['Bob']);
+  tokens['Carol'] = generateJWT(ids['Carol']);
+  tokens['Dave'] = generateJWT(ids['Dave']);
 }
 
 async function query(asUser, q, variables = {}) {

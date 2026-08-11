@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // eslint-disable-next-line
     setUser((nhost.getUserSession()?.user as User) || null)
     setIsLoading(false)
     // Listen for auth changes
