@@ -18,5 +18,7 @@ type TriggerWorkflowRunResult {
 
 type ApproveStepResult {
   success: Boolean!
+  run_id: uuid
+  status: String
 }
 

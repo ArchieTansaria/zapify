@@ -1,11 +1,11 @@
 import { ExecutionContext, WorkflowStep } from './types';
-import { loadWorkflowSteps, createStepRun, updateStepRun, completeWorkflowRun, failWorkflowRun } from './persistence';
+import { loadWorkflowSteps, createStepRun, updateStepRun, completeWorkflowRun, failWorkflowRun, pauseWorkflowRun, executeAdminQuery } from './persistence';
 import { executeLLM } from './executors/llm';
 import { executeHttp } from './executors/http';
 import { executeConditional } from './executors/conditional';
 import { executeWithRetry } from './retry';
 
-export async function runWorkflow(workflowRunId: string, workflowId: string, orgId: string) {
+export async function runWorkflow(workflowRunId: string, workflowId: string, orgId: string, resumeFromStepId?: string) {
   try {
     const steps = await loadWorkflowSteps(workflowId);
     if (steps.length === 0) {
@@ -21,8 +21,33 @@ export async function runWorkflow(workflowRunId: string, workflowId: string, org
     };
 
     let currentIndex = 0;
-    // We use a flat index, but conditional branches can manipulate execution
     let jumpTargetId: string | undefined = undefined;
+
+    if (resumeFromStepId) {
+      // Find the step we are resuming from
+      const resumeIndex = steps.findIndex(s => s.id === resumeFromStepId);
+      if (resumeIndex === -1) {
+        throw new Error(`Resume target step ${resumeFromStepId} not found`);
+      }
+      
+      // Fetch the input payload of the approval_gate step run to reconstruct ctx
+      const query = `
+        query GetStepRunInput($run_id: uuid!, $step_id: uuid!) {
+          step_runs(where: {workflow_run_id: {_eq: $run_id}, workflow_step_id: {_eq: $step_id}}, limit: 1) {
+            input
+          }
+        }
+      `;
+      const data = await executeAdminQuery(query, { run_id: workflowRunId, step_id: resumeFromStepId });
+      if (data.step_runs && data.step_runs.length > 0) {
+        const input = data.step_runs[0].input;
+        ctx.previousOutput = input?.previousOutput;
+        ctx.pendingJoin = input?.pendingJoin;
+      }
+      
+      // Start execution from the step AFTER the approval_gate
+      currentIndex = resumeIndex + 1;
+    }
 
     while (currentIndex < steps.length) {
       let step: WorkflowStep;
@@ -38,7 +63,15 @@ export async function runWorkflow(workflowRunId: string, workflowId: string, org
 
       step = steps[currentIndex];
 
-      const input = { previousOutput: ctx.previousOutput };
+      const input = { previousOutput: ctx.previousOutput, pendingJoin: ctx.pendingJoin };
+      
+      if (step.step_type === 'approval_gate') {
+        // Special case: Create paused step run, pause workflow run, and terminate function
+        await createStepRun(workflowRunId, step.id, step.step_order, input, 'waiting_for_approval');
+        await pauseWorkflowRun(workflowRunId);
+        return; // Pause execution
+      }
+
       const stepRunId = await createStepRun(workflowRunId, step.id, step.step_order, input);
 
       let resultObj: { result?: any, error?: string, attempts: number };
@@ -48,7 +81,6 @@ export async function runWorkflow(workflowRunId: string, workflowId: string, org
       } else if (step.step_type === 'http_request') {
         resultObj = await executeWithRetry(() => executeHttp(step, ctx), 3);
       } else if (step.step_type === 'conditional_branch') {
-        // Conditionals shouldn't retry
         try {
           const res = executeConditional(step, ctx);
           resultObj = { result: res, attempts: 1 };
@@ -66,43 +98,16 @@ export async function runWorkflow(workflowRunId: string, workflowId: string, org
       } else {
         let output = resultObj.result;
         
-        // Handle conditional branch special return
         if (step.step_type === 'conditional_branch') {
           output = resultObj.result.output;
-          // IMPORTANT BRANCHING SEMANTICS:
-          // The conditional executor returns `nextStepId` and `joinStepId`.
-          // We must jump to `nextStepId`, and once that branch is done, we jump to `joinStepId`.
-          // For simplicity in this engine, if `nextStepId` is defined, we set it as jump target.
-          // The tricky part: how to skip the unselected branch and resume at `joinStepId`?
-          // Since we don't have a DAG, the selected branch will just execute until it reaches the end,
-          // OR it must explicitly jump to `joinStepId` when it's done. 
-          // But a regular step doesn't know about `joinStepId`.
-          // Better design per the requirements: The Conditional step itself just jumps to `nextStepId`.
-          // If we need to skip the other branch entirely, the user should configure the branch steps
-          // to jump to the join step, or we can just say "conditional skips to nextStepId, and that's it".
-          // Wait, the prompt says: "After executing the selected branch, the runner must jump to the configured continuation/join point rather than accidentally traversing the other branch."
-          // So if step A is executed, it shouldn't fall through to step B.
-          // To implement this simply: 
-          // If a conditional returns nextStepId and joinStepId, we can find the nextStep, execute it, 
-          // then automatically jump to joinStepId. This assumes the branch is EXACTLY one step!
-          // If the branch is multiple steps, a simple runner would need a stack.
-          // Let's implement a simple branch override:
-          // We execute the conditional. It sets `jumpTargetId = nextStepId`.
-          // It also pushes `joinStepId` to a stack with a target condition? No, the easiest is: 
-          // The conditional step just skips the unselected steps by jumping straight to `nextStepId`.
-          // If the branch only contains one step, after that step, the index naturally increments.
-          // If `nextStepId` is Step 3, and Step 4 is the other branch, how does it jump over Step 4 to Step 5 (join)?
-          // We can just execute Step 3, then jump to Step 5.
-          // Let's store `pendingJoinStepId` globally for the branch execution.
           ctx.pendingJoin = resultObj.result.joinStepId;
           jumpTargetId = resultObj.result.nextStepId;
         } else {
-          // If we just executed a branch step and have a pendingJoin, we jump to it.
           if (ctx.pendingJoin) {
             jumpTargetId = ctx.pendingJoin;
             ctx.pendingJoin = undefined;
           } else {
-            currentIndex++; // normal sequential flow
+            currentIndex++; 
           }
         }
 

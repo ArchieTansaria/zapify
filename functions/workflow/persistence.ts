@@ -46,14 +46,15 @@ export async function createStepRun(
   workflowRunId: string, 
   stepId: string, 
   stepOrder: number, 
-  input: any
+  input: any,
+  status: StepRunStatus = 'running'
 ): Promise<string> {
   const mutation = `
-    mutation CreateStepRun($workflow_run_id: uuid!, $workflow_step_id: uuid!, $step_order: Int!, $input: jsonb!) {
+    mutation CreateStepRun($workflow_run_id: uuid!, $workflow_step_id: uuid!, $step_order: Int!, $input: jsonb!, $status: step_run_status!) {
       insert_step_runs_one(object: {
         workflow_run_id: $workflow_run_id,
         workflow_step_id: $workflow_step_id,
-        status: "running",
+        status: $status,
         step_order: $step_order,
         input: $input,
         started_at: "now()"
@@ -64,7 +65,8 @@ export async function createStepRun(
     workflow_run_id: workflowRunId, 
     workflow_step_id: stepId,
     step_order: stepOrder,
-    input
+    input,
+    status
   });
   return data.insert_step_runs_one.id;
 }
@@ -126,4 +128,71 @@ export async function failWorkflowRun(runId: string, error: string) {
     }
   `;
   await executeAdminQuery(mutation, { run_id: runId, error });
+}
+
+export async function pauseWorkflowRun(runId: string) {
+  const mutation = `
+    mutation PauseRun($run_id: uuid!) {
+      update_workflow_runs_by_pk(
+        pk_columns: {id: $run_id},
+        _set: {status: "paused"}
+      ) { id }
+    }
+  `;
+  await executeAdminQuery(mutation, { run_id: runId });
+}
+
+export async function resumeWorkflowRun(runId: string) {
+  const mutation = `
+    mutation ResumeRun($run_id: uuid!) {
+      update_workflow_runs_by_pk(
+        pk_columns: {id: $run_id},
+        _set: {status: "running"}
+      ) { id }
+    }
+  `;
+  await executeAdminQuery(mutation, { run_id: runId });
+}
+
+export async function approveStepRun(stepRunId: string, userId: string): Promise<boolean> {
+  const mutation = `
+    mutation ApproveStepRun($id: uuid!, $user_id: uuid!) {
+      update_step_runs(
+        where: { id: { _eq: $id }, status: { _eq: "waiting_for_approval" } },
+        _set: {
+          status: "completed",
+          approved_by: $user_id,
+          approved_at: "now()",
+          completed_at: "now()"
+        }
+      ) {
+        affected_rows
+      }
+    }
+  `;
+  const data = await executeAdminQuery(mutation, { id: stepRunId, user_id: userId });
+  return data.update_step_runs.affected_rows > 0;
+}
+
+export async function getRunContext(runId: string) {
+  const query = `
+    query GetRunContext($run_id: uuid!) {
+      step_runs(
+        where: {workflow_run_id: {_eq: $run_id}, status: {_in: ["completed", "failed", "skipped"]}},
+        order_by: {step_order: desc},
+        limit: 1
+      ) {
+        output
+        input
+      }
+    }
+  `;
+  const data = await executeAdminQuery(query, { run_id: runId });
+  if (data.step_runs && data.step_runs.length > 0) {
+    // Return output of the last completed step. Or for approval_gate, its output might be null, but its input has previousOutput.
+    // Wait, approval_gate output is probably null. But we don't care, we can just get the last step run.
+    const lastRun = data.step_runs[0];
+    return lastRun.output ?? lastRun.input?.previousOutput ?? null;
+  }
+  return null;
 }
