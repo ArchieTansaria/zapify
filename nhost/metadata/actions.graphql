@@ -10,6 +10,13 @@ type Mutation {
   ): TriggerWorkflowRunResult!
 }
 
+type Mutation {
+  triggerWorkflowWebhook(
+    workflow_id: uuid!
+    payload: jsonb
+  ): TriggerWorkflowRunResult!
+}
+
 type TriggerWorkflowRunResult {
   success: Boolean!
   run_id: uuid

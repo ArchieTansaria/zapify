@@ -5,7 +5,7 @@ import { executeHttp } from './executors/http';
 import { executeConditional } from './executors/conditional';
 import { executeWithRetry } from './retry';
 
-export async function runWorkflow(workflowRunId: string, workflowId: string, orgId: string, resumeFromStepId?: string) {
+export async function runWorkflow(workflowRunId: string, workflowId: string, orgId: string, resumeFromStepId?: string, initialPayload?: any) {
   try {
     const steps = await loadWorkflowSteps(workflowId);
     if (steps.length === 0) {
@@ -16,7 +16,7 @@ export async function runWorkflow(workflowRunId: string, workflowId: string, org
     const ctx: ExecutionContext = {
       workflowRunId,
       workflowId,
-      previousOutput: null,
+      previousOutput: initialPayload || null,
       steps: {}
     };
 

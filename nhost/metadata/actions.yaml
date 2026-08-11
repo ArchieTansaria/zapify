@@ -11,6 +11,13 @@ actions:
       handler: '{{NHOST_FUNCTIONS_URL}}/triggerWorkflowRun'
     permissions:
       - role: user
+  - name: triggerWorkflowWebhook
+    definition:
+      kind: synchronous
+      handler: '{{NHOST_FUNCTIONS_URL}}/triggerWorkflowWebhook'
+      forward_client_headers: true
+    permissions:
+      - role: public
 custom_types:
   enums: []
   input_objects: []

@@ -17,24 +17,27 @@ async function main() {
   const ids = {};
 
   for (const u of users) {
-    let res = await nhost.auth.signUp({
-      email: u.email,
-      password: u.password
+    let res = await fetch('https://local.auth.local.nhost.run/v1/signup/email-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: u.email, password: u.password })
     });
+    let data = await res.json();
     
-    // If user already exists from a previous run, just sign in
-    if (res.error && res.error.message.includes('already exists')) {
-      res = await nhost.auth.signIn({
-        email: u.email,
-        password: u.password
+    if (data.status === 409 || (data.message && data.message.includes('already'))) {
+      res = await fetch('https://local.auth.local.nhost.run/v1/signin/email-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: u.email, password: u.password })
       });
-    } else if (res.error) {
-      console.error('Error signing up:', u.email, res.error);
+      data = await res.json();
+    } else if (data.error) {
+      console.error('Error signing up:', u.email, data.error);
       continue;
     }
     
-    tokens[u.name] = res.session?.accessToken;
-    ids[u.name] = res.session?.user.id;
+    tokens[u.name] = data.session?.accessToken;
+    ids[u.name] = data.session?.user?.id;
   }
 
   console.log('--- TOKENS ---');
@@ -101,7 +104,7 @@ async function main() {
     }
   `;
 
-  const seedRes = await fetch('http://localhost:8080/v1/graphql', {
+  const seedRes = await fetch('https://local.hasura.local.nhost.run/v1/graphql', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
