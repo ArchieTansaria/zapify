@@ -1,4 +1,8 @@
-import { ChevronsUpDown, Check, Building2 } from "lucide-react"
+"use client"
+
+import * as React from "react"
+import { Building2, ChevronsUpDown, Check } from "lucide-react"
+import { useOrganization } from "@/components/providers/organization-provider"
 
 import {
   DropdownMenu,
@@ -9,13 +13,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-const orgs = [
-  { id: "1", name: "Acme Corp" },
-  { id: "2", name: "Personal" },
-]
-
 export function OrganizationSelector() {
-  const currentOrg = orgs[0]
+  const { organizations, currentOrganization, switchOrganization, isLoading } = useOrganization()
+  
+  if (isLoading) {
+    return (
+      <div className="flex h-12 w-full items-center px-2">
+        <div className="h-8 w-8 rounded bg-muted animate-pulse" />
+        <div className="ml-2 h-4 w-20 rounded bg-muted animate-pulse" />
+      </div>
+    )
+  }
+
+  const currentOrg = currentOrganization || organizations[0]
 
   return (
     <DropdownMenu>
@@ -24,7 +34,7 @@ export function OrganizationSelector() {
           <Building2 className="h-3 w-3" />
         </div>
         <span className="text-sm font-medium leading-none flex-1 text-left truncate">
-          {currentOrg.name}
+          {currentOrg ? currentOrg.name : "No Organization"}
         </span>
         <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
       </DropdownMenuTrigger>
@@ -33,13 +43,17 @@ export function OrganizationSelector() {
           Organizations
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {orgs.map((org) => (
-          <DropdownMenuItem key={org.id} className="flex items-center gap-2">
+        {organizations.map((org) => (
+          <DropdownMenuItem 
+            key={org.id} 
+            className="flex items-center gap-2"
+            onClick={() => switchOrganization(org.id)}
+          >
             <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-muted text-foreground border">
               <Building2 className="h-3 w-3" />
             </div>
             <span className="flex-1 truncate">{org.name}</span>
-            {org.id === currentOrg.id && (
+            {currentOrg && org.id === currentOrg.id && (
               <Check className="h-4 w-4 shrink-0 text-primary" />
             )}
           </DropdownMenuItem>
