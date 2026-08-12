@@ -60,7 +60,8 @@ export function TriggerEditor({
   }
 
   const handleDelete = () => {
-    setDraftTrigger(null)
+    onSave([])
+    onOpenChange(false)
   }
 
   const handleTypeChange = (val: string) => {
@@ -73,150 +74,148 @@ export function TriggerEditor({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Workflow Triggers</DialogTitle>
-          <DialogDescription>
-            Configure how this workflow is executed.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="py-4 space-y-6">
-          {!draftTrigger ? (
-            <div className="text-center py-6 space-y-4">
-              <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                <Zap className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-4">No trigger is configured.</p>
-                {canEdit && (
-                  <Button onClick={() => handleTypeChange("manual")}>
-                    Add Trigger
-                  </Button>
-                )}
-              </div>
+    <div className="flex flex-col h-full overflow-y-auto bg-card">
+      <div className="p-4 border-b font-semibold text-sm uppercase tracking-wider text-muted-foreground flex justify-between items-center bg-muted/20">
+        <span>Edit Trigger</span>
+        <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground">
+          ✕
+        </Button>
+      </div>
+      
+      <div className="p-4 space-y-6 flex-1">
+        {!draftTrigger ? (
+          <div className="text-center py-6 space-y-4">
+            <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+              <Zap className="h-6 w-6 text-muted-foreground" />
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Trigger Type</Label>
-                <Select 
-                  value={draftTrigger.trigger_type} 
-                  onValueChange={handleTypeChange}
-                  disabled={!canEdit || draftTrigger.trigger_type === "webhook"}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">
-                      <div className="flex items-center">
-                        <Hand className="h-4 w-4 mr-2" />
-                        Manual
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="scheduled">
-                      <div className="flex items-center">
-                        <Clock className="h-4 w-4 mr-2" />
-                        Scheduled
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="database_event">
-                      <div className="flex items-center">
-                        <Database className="h-4 w-4 mr-2" />
-                        Database Event
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="webhook" disabled>
-                      <div className="flex items-center">
-                        <Webhook className="h-4 w-4 mr-2" />
-                        Webhook (Admin only)
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {draftTrigger.trigger_type === "webhook" && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Webhook triggers require secure server-side secret generation and cannot be modified from the builder yet.
+            <div>
+              <p className="text-sm text-muted-foreground mb-4">No trigger is configured.</p>
+              {canEdit && (
+                <Button onClick={() => handleTypeChange("manual")}>
+                  Add Trigger
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Trigger Type</Label>
+              <Select 
+                value={draftTrigger.trigger_type} 
+                onValueChange={handleTypeChange}
+                disabled={!canEdit || draftTrigger.trigger_type === "webhook"}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">
+                    <div className="flex items-center">
+                      <Hand className="h-4 w-4 mr-2" />
+                      Manual
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="scheduled">
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 mr-2" />
+                      Scheduled
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="database_event">
+                    <div className="flex items-center">
+                      <Database className="h-4 w-4 mr-2" />
+                      Database Event
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="webhook" disabled>
+                    <div className="flex items-center">
+                      <Webhook className="h-4 w-4 mr-2" />
+                      Webhook (Admin only)
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {draftTrigger.trigger_type === "webhook" && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Webhook triggers require secure server-side secret generation and cannot be modified from the builder yet.
+                </p>
+              )}
+              
+              {draftTrigger.trigger_type === "scheduled" && (
+                <div className="pt-4 space-y-2">
+                  <Label>Cron Expression</Label>
+                  <Input 
+                    value={(draftTrigger.config.cron as string) || ""}
+                    onChange={(e) => setDraftTrigger({
+                      ...draftTrigger,
+                      config: { ...draftTrigger.config, cron: e.target.value }
+                    })}
+                    placeholder="*/5 * * * *"
+                    disabled={!canEdit}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Supports standard cron format (e.g. <code>*/5 * * * *</code> for every 5 minutes).
                   </p>
-                )}
-                
-                {draftTrigger.trigger_type === "scheduled" && (
-                  <div className="pt-4 space-y-2">
-                    <Label>Cron Expression</Label>
-                    <Input 
-                      value={(draftTrigger.config.cron as string) || ""}
-                      onChange={(e) => setDraftTrigger({
+                </div>
+              )}
+
+              {draftTrigger.trigger_type === "database_event" && (
+                <div className="pt-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label>Watched Table</Label>
+                    <Select 
+                      value={(draftTrigger.config.table as string) || ""}
+                      onValueChange={(val) => setDraftTrigger({
                         ...draftTrigger,
-                        config: { ...draftTrigger.config, cron: e.target.value }
+                        config: { ...draftTrigger.config, table: val }
                       })}
-                      placeholder="*/5 * * * *"
                       disabled={!canEdit}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Supports standard cron format (e.g. <code>*/5 * * * *</code> for every 5 minutes).
-                    </p>
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select a table" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="workflow_custom_data">workflow_custom_data</SelectItem>
+                        <SelectItem value="workflows">workflows</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
-
-                {draftTrigger.trigger_type === "database_event" && (
-                  <div className="pt-4 space-y-4">
-                    <div className="space-y-2">
-                      <Label>Watched Table</Label>
-                      <Select 
-                        value={(draftTrigger.config.table as string) || ""}
-                        onValueChange={(val) => setDraftTrigger({
-                          ...draftTrigger,
-                          config: { ...draftTrigger.config, table: val }
-                        })}
-                        disabled={!canEdit}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Select a table" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="workflow_custom_data">workflow_custom_data</SelectItem>
-                          <SelectItem value="workflows">workflows</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Operation</Label>
-                      <Select 
-                        value={(draftTrigger.config.operation as string) || ""}
-                        onValueChange={(val) => setDraftTrigger({
-                          ...draftTrigger,
-                          config: { ...draftTrigger.config, operation: val }
-                        })}
-                        disabled={!canEdit}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Select an operation" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="INSERT">INSERT</SelectItem>
-                          <SelectItem value="UPDATE">UPDATE</SelectItem>
-                          <SelectItem value="DELETE">DELETE</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Operation</Label>
+                    <Select 
+                      value={(draftTrigger.config.operation as string) || ""}
+                      onValueChange={(val) => setDraftTrigger({
+                        ...draftTrigger,
+                        config: { ...draftTrigger.config, operation: val }
+                      })}
+                      disabled={!canEdit}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select an operation" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="INSERT">INSERT</SelectItem>
+                        <SelectItem value="UPDATE">UPDATE</SelectItem>
+                        <SelectItem value="DELETE">DELETE</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
-              </div>
-
-              {canEdit && draftTrigger.trigger_type !== "webhook" && (
-                <div className="pt-4 border-t flex justify-end">
-                  <Button variant="destructive" size="sm" onClick={handleDelete}>
-                    Remove Trigger
-                  </Button>
                 </div>
               )}
             </div>
-          )}
-        </div>
-        
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          {canEdit && <Button onClick={handleSave}>Save</Button>}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+            {canEdit && draftTrigger.trigger_type !== "webhook" && (
+              <div className="pt-4 border-t flex justify-end">
+                <Button variant="destructive" size="sm" onClick={handleDelete}>
+                  Remove Trigger
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      
+      <div className="p-4 border-t bg-muted/10 flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+        {canEdit && <Button size="sm" onClick={handleSave}>Apply changes</Button>}
+      </div>
+    </div>
   )
 }

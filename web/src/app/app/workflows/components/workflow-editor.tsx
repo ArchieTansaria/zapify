@@ -1,11 +1,16 @@
-import { useState } from "react"
+import { useState, useMemo, useCallback } from "react"
+import { useNodesState, useEdgesState, addEdge, Connection, Edge, Node } from "@xyflow/react"
+import { buildGraphFromBackend } from "../lib/graph"
+import { validateAndSerializeGraph } from "../lib/validation"
 import { Workflow, WorkflowStep, WorkflowTrigger, createWorkflowStep, updateWorkflowStep, deleteWorkflowStep, createWorkflowTrigger, updateWorkflowTrigger, deleteWorkflowTrigger } from "@/lib/graphql/workflows"
 import { useOrganization } from "@/components/providers/organization-provider"
 import { WorkflowToolbar } from "./workflow-toolbar"
 import { WorkflowStepCard } from "./workflow-step-card"
 import { WorkflowStepEditor } from "./workflow-step-editor"
-import { AddStepMenu } from "./add-step-menu"
 import { TriggerEditor } from "./trigger-editor"
+import { WorkflowNodePalette } from "./workflow-node-palette"
+import { WorkflowInspector } from "./workflow-inspector"
+import { WorkflowCanvas } from "./workflow-canvas"
 import { Zap } from "lucide-react"
 
 interface WorkflowEditorProps {
@@ -24,6 +29,16 @@ export function WorkflowEditor({ initialWorkflow, onSaved }: WorkflowEditorProps
   const [activeStep, setActiveStep] = useState<WorkflowStep | null>(null)
   const [isStepEditorOpen, setIsStepEditorOpen] = useState(false)
   const [isTriggerEditorOpen, setIsTriggerEditorOpen] = useState(false)
+
+  // Initialize React Flow state once on mount from the backend data
+  const initialGraph = useMemo(() => buildGraphFromBackend(steps, triggers), [])
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialGraph.nodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialGraph.edges)
+
+  const handleConnect = useCallback((connection: Connection | Edge) => {
+    setEdges((eds) => addEdge(connection, eds))
+    setSaveState("unsaved")
+  }, [setEdges])
 
   // Mark as unsaved if steps or triggers change. 
   // We avoid strict deep equality for performance, trusting our setters to only run on actual mutations.
@@ -77,22 +92,31 @@ export function WorkflowEditor({ initialWorkflow, onSaved }: WorkflowEditorProps
   const persistChanges = async () => {
     setSaveState("saving")
     try {
-      // Very naive diffing: just update/create everything. 
-      // For deletions, we look at initial vs current.
+      // 0. Validate and Serialize the React Flow graph
+      const { steps: newSteps, triggers: newTriggers, error } = validateAndSerializeGraph(nodes, edges)
       
+      if (error) {
+        alert(error)
+        setSaveState("error")
+        return
+      }
+      
+      // Update local state with the serialized result
+      setSteps(newSteps)
+      setTriggers(newTriggers)
+
       // 1. Process Triggers
       const initialTriggerIds = (initialWorkflow.workflow_triggers || []).map(t => t.id)
-      const currentTriggerIds = triggers.filter(t => t.id !== 'draft').map(t => t.id)
+      const currentTriggerIds = newTriggers.filter(t => !t.id.startsWith('draft-')).map(t => t.id)
       const triggersToDelete = initialTriggerIds.filter(id => !currentTriggerIds.includes(id))
       
       for (const id of triggersToDelete) {
         await deleteWorkflowTrigger(id)
       }
-      for (const t of triggers) {
-        if (t.id === 'draft') {
+      for (const t of newTriggers) {
+        if (t.id.startsWith('draft-')) {
           await createWorkflowTrigger(initialWorkflow.id, t.trigger_type, t.config)
         } else {
-          // Cannot modify webhook via builder, so just skip it
           if (t.trigger_type !== 'webhook') {
             await updateWorkflowTrigger(t.id, t.config, t.is_active)
           }
@@ -101,16 +125,23 @@ export function WorkflowEditor({ initialWorkflow, onSaved }: WorkflowEditorProps
 
       // 2. Process Steps
       const initialStepIds = (initialWorkflow.workflow_steps || []).map(s => s.id)
-      const currentRealIds = steps.map(s => s.id)
+      const currentRealIds = newSteps.map(s => s.id)
       const stepsToDelete = initialStepIds.filter(id => !currentRealIds.includes(id))
 
       for (const id of stepsToDelete) {
         await deleteWorkflowStep(id)
       }
 
-      for (let i = 0; i < steps.length; i++) {
-        const s = steps[i]
-        // If it was in initial, update it. Else create.
+      // PRE-PASS: Temporarily shift step_order of existing steps to avoid unique constraint violations
+      // when swapping orders of existing steps. PostgreSQL checks constraints per-statement.
+      const stepsToUpdate = newSteps.filter(s => initialStepIds.includes(s.id))
+      for (let i = 0; i < stepsToUpdate.length; i++) {
+        const s = stepsToUpdate[i]
+        await updateWorkflowStep(s.id, s.name, s.config, i + 10000)
+      }
+
+      for (let i = 0; i < newSteps.length; i++) {
+        const s = newSteps[i]
         if (initialStepIds.includes(s.id)) {
           await updateWorkflowStep(s.id, s.name, s.config, i)
         } else {
@@ -126,120 +157,160 @@ export function WorkflowEditor({ initialWorkflow, onSaved }: WorkflowEditorProps
     }
   }
 
+  const handleAddNode = useCallback((type: string, position?: { x: number, y: number }, isTrigger: boolean = false) => {
+    if (isTrigger) {
+      const newNode: Node = {
+        id: `draft-trigger-${Date.now()}`,
+        type: 'triggerNode',
+        position: position || { x: 250, y: 50 },
+        data: {
+          id: `draft-trigger-${Date.now()}`,
+          trigger_type: type,
+          is_active: true,
+          config: type === "database_event" ? { table: "workflow_custom_data", operation: "INSERT" } : (type === "scheduled" ? { cron: "*/5 * * * *" } : {}),
+          label: type.replace('_', ' '),
+          description: 'Workflow trigger'
+        }
+      }
+      setNodes(nds => [...nds, newNode])
+      setSaveState('unsaved')
+      return;
+    }
+
+    // Step logic: find terminal nodes
+    const sources = new Set(edges.map(e => e.source))
+    const terminals = nodes.filter(n => !sources.has(n.id))
+    
+    let finalPosition = position;
+    let autoConnectSource: Node | null = null;
+    
+    // Auto-placement logic if no explicit position (click from palette)
+    if (!finalPosition) {
+       if (terminals.length === 1) {
+         const term = terminals[0];
+         finalPosition = { x: term.position.x, y: term.position.y + 150 };
+       } else {
+         const maxY = nodes.length > 0 ? Math.max(...nodes.map(n => n.position.y)) : 50;
+         finalPosition = { x: 250, y: maxY + 150 };
+       }
+    }
+
+    // Determine auto-connect target
+    // We auto connect if exactly 1 terminal and it's NOT a conditional node (since conditionals have multiple ambiguous handles)
+    if (terminals.length === 1 && terminals[0].type !== 'conditionalNode') {
+      autoConnectSource = terminals[0];
+    }
+
+    const newNodeId = `draft-step-${Date.now()}`
+    const newNode: Node = {
+      id: newNodeId,
+      type: type === 'conditional_branch' ? 'conditionalNode' : 'actionNode',
+      position: finalPosition,
+      data: {
+        id: newNodeId,
+        step_type: type,
+        name: `New ${type.replace('_', ' ')}`,
+        config: {},
+        label: `New ${type.replace('_', ' ')}`,
+        description: type.replace('_', ' ')
+      }
+    }
+    
+    setNodes(nds => [...nds, newNode])
+    
+    if (autoConnectSource) {
+      setEdges(eds => [...eds, {
+        id: `e-${autoConnectSource!.id}-${newNodeId}`,
+        source: autoConnectSource!.id,
+        target: newNodeId
+      }])
+    }
+    
+    setSaveState('unsaved')
+  }, [nodes, edges, setNodes, setEdges])
+
   return (
-    <div className="relative min-h-[calc(100vh-4rem)]">
-      <div className="absolute inset-0 z-[-1] bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1f2937_1px,transparent_1px)] [background-size:20px_20px] opacity-50" />
-      <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background to-transparent z-[-1]" />
-      
-      <div className="max-w-4xl mx-auto space-y-10 pb-16 pt-6 px-4">
+    <div className="relative flex flex-col h-full min-h-0 min-w-0">
+      <div className="flex-none px-4 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10">
         <WorkflowToolbar 
-        name={initialWorkflow.name}
-        isDraft={!initialWorkflow.is_active}
-        updatedAt={initialWorkflow.updated_at}
-        stepCount={steps.length}
-        triggerTypes={triggers.map(t => t.trigger_type)}
-        saveState={saveState}
-        onSave={persistChanges}
-        onRun={() => {}}
-        canEdit={canEdit}
-      />
+          name={initialWorkflow.name}
+          isDraft={!initialWorkflow.is_active}
+          updatedAt={initialWorkflow.updated_at}
+          stepCount={steps.length}
+          triggerTypes={triggers.map(t => t.trigger_type)}
+          saveState={saveState}
+          onSave={persistChanges}
+          onRun={() => {}}
+          canEdit={canEdit}
+        />
+      </div>
 
-      <div className="space-y-6">
-        {/* Trigger Section */}
-        <div className="space-y-4 relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold tracking-widest uppercase text-muted-foreground/70">Trigger</h2>
-          </div>
-          
-          <div 
-            className={`group relative overflow-hidden border rounded-xl p-6 flex flex-col items-center justify-center bg-card/60 backdrop-blur-sm shadow-sm transition-all duration-300 ease-out ${canEdit ? 'hover:shadow-md hover:border-primary/50 cursor-pointer hover:-translate-y-0.5' : ''}`}
-            onClick={() => setIsTriggerEditorOpen(true)}
-          >
-            {/* Subtle glow effect on hover */}
-            {canEdit && <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />}
-            
-            {triggers.length === 0 ? (
-              <p className="text-muted-foreground text-sm font-medium relative z-10">No trigger configured</p>
-            ) : (
-              <div className="flex items-center gap-4 relative z-10">
-                <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 text-primary shadow-inner">
-                  <Zap className="h-5 w-5" />
-                </div>
-                <p className="font-semibold text-lg capitalize tracking-tight">{triggers[0].trigger_type.replace('_', ' ')} Trigger</p>
-              </div>
-            )}
-          </div>
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Palette */}
+        <div className="w-64 border-r bg-muted/10 hidden md:block">
+          <WorkflowNodePalette 
+            canEdit={canEdit} 
+            hasTrigger={nodes.some(n => n.type === 'triggerNode')}
+            onAddTrigger={(type) => handleAddNode(type, undefined, true)}
+            onAddStep={(type) => handleAddNode(type, undefined, false)}
+          />
         </div>
 
-        <div className="flex justify-center relative z-0">
-          <div className="w-px h-10 bg-gradient-to-b from-border to-border/30"></div>
+        {/* Center Canvas */}
+        <div className="flex-1 h-full">
+          <WorkflowCanvas 
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={handleConnect}
+            onAddNode={handleAddNode}
+            onDeleteEdge={(edgeId) => {
+              setEdges(eds => eds.filter(e => e.id !== edgeId))
+              setSaveState('unsaved')
+            }}
+          />
         </div>
 
-        {/* Steps Section */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-sm font-bold tracking-widest uppercase text-muted-foreground/70">Steps</h2>
-          </div>
-
-          <div className="relative pl-5 sm:pl-8 space-y-5 before:absolute before:inset-y-0 before:left-[1.8rem] sm:before:left-[2.5rem] before:w-px before:bg-gradient-to-b before:from-border before:via-border/50 before:to-transparent before:-z-10">
-            {steps.map((step, idx) => (
-              <div 
-                key={step.id} 
-                className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
-                style={{ animationDelay: `${(idx + 1) * 100}ms` }}
-              >
-                <WorkflowStepCard 
-                  step={step}
-                  index={idx}
-                  totalSteps={steps.length}
-                  canEdit={canEdit}
-                  onEdit={() => {
-                    setActiveStep(step)
-                    setIsStepEditorOpen(true)
-                  }}
-                  onMoveUp={() => handleMoveStep(idx, 'up')}
-                  onMoveDown={() => handleMoveStep(idx, 'down')}
-                  onDelete={() => handleDeleteStep(step.id)}
-                />
-              </div>
-            ))}
-            
-            <div 
-              className="relative flex items-center gap-5 pt-4 animate-in fade-in duration-500 fill-mode-both"
-              style={{ animationDelay: `${(steps.length + 1) * 100}ms` }}
-            >
-              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-card border-2 border-dashed border-primary/30 z-10 shrink-0 shadow-sm">
-                <div className="h-2 w-2 rounded-full bg-primary/40 animate-pulse" />
-              </div>
-              <AddStepMenu 
-                disabled={!canEdit}
-                userRole={currentUserRole || undefined}
-                onAddStep={(step) => {
-                  setActiveStep({ ...step, step_order: steps.length })
-                  setIsStepEditorOpen(true)
-                }} 
-              />
-            </div>
+        {/* Right Inspector */}
+        <div 
+          className={`border-l bg-background hidden lg:block overflow-y-auto shrink-0 transition-all duration-300 ease-in-out ${
+            nodes.some(n => n.selected) ? 'w-80 border-l' : 'w-0 border-transparent border-l-0 overflow-hidden'
+          }`}
+        >
+          <div className="w-80 h-full">
+            <WorkflowInspector 
+              selectedNode={nodes.find(n => n.selected) || null}
+              canEdit={canEdit}
+              onSaveNode={(nodeId, data) => {
+                setNodes(nds => nds.map(n => {
+                  if (n.id === nodeId) {
+                    return {
+                      ...n,
+                      data: {
+                        ...n.data,
+                        ...data,
+                        label: data.name || (data.trigger_type ? data.trigger_type.replace('_', ' ') : n.data.label)
+                      }
+                    }
+                  }
+                  return n
+                }))
+                setSaveState('unsaved')
+              }}
+              onDeleteNode={(nodeId) => {
+                setNodes(nds => nds.filter(n => n.id !== nodeId))
+                setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId))
+                setSaveState('unsaved')
+              }}
+              onClose={() => {
+                // Deselect all nodes to close inspector
+                setNodes(nds => nds.map(n => ({ ...n, selected: false })))
+              }}
+            />
           </div>
         </div>
       </div>
-
-      <WorkflowStepEditor 
-        step={activeStep}
-        allSteps={steps}
-        open={isStepEditorOpen}
-        onOpenChange={setIsStepEditorOpen}
-        onSave={handleSaveStep}
-      />
-
-      <TriggerEditor 
-        triggers={triggers}
-        open={isTriggerEditorOpen}
-        onOpenChange={setIsTriggerEditorOpen}
-        onSave={handleSaveTriggers}
-        canEdit={canEdit}
-      />
-    </div>
     </div>
   )
 }

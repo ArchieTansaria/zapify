@@ -26,6 +26,7 @@ interface WorkflowStepEditorProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave: (step: WorkflowStep) => void
+  onDelete?: () => void
 }
 
 export function WorkflowStepEditor({
@@ -33,7 +34,8 @@ export function WorkflowStepEditor({
   allSteps,
   open,
   onOpenChange,
-  onSave
+  onSave,
+  onDelete
 }: WorkflowStepEditorProps) {
   const [draft, setDraft] = useState<WorkflowStep | null>(null)
 
@@ -333,36 +335,43 @@ export function WorkflowStepEditor({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Edit Step</SheetTitle>
-          <SheetDescription>
-            Configure the parameters for this step.
-          </SheetDescription>
-        </SheetHeader>
-        
-        <div className="py-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Step Name</Label>
-            <Input 
-              id="name" 
-              value={draft.name} 
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, name: e.target.value })} 
-            />
-          </div>
-          
-          <div className="border-t pt-4">
-            <h3 className="font-semibold text-sm mb-2 uppercase tracking-wider text-muted-foreground">Configuration</h3>
-            {renderConfigEditor()}
-          </div>
+    <div className="flex flex-col h-full overflow-y-auto bg-card">
+      <div className="p-4 border-b font-semibold text-sm uppercase tracking-wider text-muted-foreground flex justify-between items-center bg-muted/20">
+        <span>Edit Step</span>
+        <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground">
+          ✕
+        </Button>
+      </div>
+      
+      <div className="p-4 space-y-6 flex-1">
+        <div className="space-y-2">
+          <Label htmlFor="name">Step Name</Label>
+          <Input 
+            id="name" 
+            value={draft.name} 
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, name: e.target.value })} 
+          />
         </div>
         
-        <SheetFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave}>Save step</Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        <div className="border-t pt-4">
+          <h3 className="font-semibold text-sm mb-2 uppercase tracking-wider text-muted-foreground">Configuration</h3>
+          {renderConfigEditor()}
+        </div>
+      </div>
+      
+      <div className="p-4 border-t bg-muted/10 flex justify-between gap-2">
+        {onDelete ? (
+          <Button variant="destructive" size="sm" onClick={() => { onDelete(); onOpenChange(false); }}>
+            Remove Step
+          </Button>
+        ) : (
+          <div /> // Spacer
+        )}
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" onClick={handleSave}>Apply changes</Button>
+        </div>
+      </div>
+    </div>
   )
 }
