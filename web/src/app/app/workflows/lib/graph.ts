@@ -57,33 +57,62 @@ export function buildGraphFromBackend(
     })
   }
 
-  // Collect branch targets to prevent false sequential edges
-  const branchTargetIds = new Set<string>();
-  
+  const getIndex = (id?: string) => id ? sortedSteps.findIndex(s => s.id === id) : -1;
+  const stepTargetMap = new Map<string, string | null>();
+
+  // Initialize all to just the next node in the array
+  for (let i = 0; i < sortedSteps.length - 1; i++) {
+    stepTargetMap.set(sortedSteps[i].id, sortedSteps[i + 1].id);
+  }
+  stepTargetMap.set(sortedSteps[sortedSteps.length - 1]?.id, null);
+
+  // Apply conditional branch tail logic
   sortedSteps.forEach((step) => {
     if (step.step_type === 'conditional_branch') {
       const config = step.config as any;
-      if (config?.if_true) branchTargetIds.add(config.if_true);
-      if (config?.if_false) branchTargetIds.add(config.if_false);
+      const trueIdx = getIndex(config?.if_true);
+      const falseIdx = getIndex(config?.if_false);
+      const afterIdx = getIndex(config?.after);
+
+      // TRUE branch boundaries
+      const trueBoundaries = [falseIdx, afterIdx, sortedSteps.length].filter(idx => idx > trueIdx);
+      const trueEnd = trueBoundaries.length > 0 ? Math.min(...trueBoundaries) : -1;
+      
+      if (trueIdx !== -1 && trueEnd !== -1) {
+        const trueTailIdx = trueEnd - 1;
+        if (trueTailIdx >= trueIdx) {
+          stepTargetMap.set(sortedSteps[trueTailIdx].id, config?.after || null);
+        }
+      }
+
+      // FALSE branch boundaries
+      const falseBoundaries = [afterIdx, sortedSteps.length].filter(idx => idx > falseIdx);
+      const falseEnd = falseBoundaries.length > 0 ? Math.min(...falseBoundaries) : -1;
+
+      if (falseIdx !== -1 && falseEnd !== -1) {
+        const falseTailIdx = falseEnd - 1;
+        if (falseTailIdx >= falseIdx) {
+          stepTargetMap.set(sortedSteps[falseTailIdx].id, config?.after || null);
+        }
+      }
     }
   });
 
-  // Normal Edges (fall-throughs)
-  for (let i = 0; i < sortedSteps.length - 1; i++) {
-    const current = sortedSteps[i]
-    const next = sortedSteps[i + 1]
+  // Generate Normal Edges
+  sortedSteps.forEach((step) => {
+    if (step.step_type === 'conditional_branch') return;
+    
+    const targetId = stepTargetMap.get(step.id);
+    if (targetId) {
+      edges.push({
+        id: `e-${step.id}-${targetId}`,
+        source: step.id,
+        target: targetId
+      });
+    }
+  });
 
-    if (current.step_type === 'conditional_branch') continue;
-    if (branchTargetIds.has(current.id)) continue;
-
-    edges.push({
-      id: `e-${current.id}-${next.id}`,
-      source: current.id,
-      target: next.id
-    })
-  }
-
-  // Conditional Edges
+  // Generate Conditional Edges
   sortedSteps.forEach((step) => {
     if (step.step_type === 'conditional_branch') {
       const config = step.config as any
@@ -95,17 +124,7 @@ export function buildGraphFromBackend(
           target: config.if_true,
           style: { stroke: '#22c55e' }
         })
-        
-        // Reconstruct visual explicit 'after' join edge
-        if (config.after && config.if_true !== config.after) {
-          edges.push({
-            id: `e-${config.if_true}-${config.after}`,
-            source: config.if_true,
-            target: config.after
-          })
-        }
       }
-      
       if (config?.if_false) {
         edges.push({
           id: `e-${step.id}-false-${config.if_false}`,
@@ -114,15 +133,6 @@ export function buildGraphFromBackend(
           target: config.if_false,
           style: { stroke: '#ef4444' }
         })
-        
-        // Reconstruct visual explicit 'after' join edge
-        if (config.after && config.if_false !== config.after) {
-          edges.push({
-            id: `e-${config.if_false}-${config.after}`,
-            source: config.if_false,
-            target: config.after
-          })
-        }
       }
     }
   })

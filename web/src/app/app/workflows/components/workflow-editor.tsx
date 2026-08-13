@@ -113,9 +113,12 @@ export function WorkflowEditor({ initialWorkflow, onSaved }: WorkflowEditorProps
       for (const id of triggersToDelete) {
         await deleteWorkflowTrigger(id)
       }
+      const idMap = new Map<string, string>()
+
       for (const t of newTriggers) {
         if (t.id.startsWith('draft-')) {
-          await createWorkflowTrigger(initialWorkflow.id, t.trigger_type, t.config)
+          const created = await createWorkflowTrigger(initialWorkflow.id, t.trigger_type, t.config)
+          if (created) idMap.set(t.id, created.id)
         } else {
           if (t.trigger_type !== 'webhook') {
             await updateWorkflowTrigger(t.id, t.config, t.is_active)
@@ -145,8 +148,25 @@ export function WorkflowEditor({ initialWorkflow, onSaved }: WorkflowEditorProps
         if (initialStepIds.includes(s.id)) {
           await updateWorkflowStep(s.id, s.name, s.config, i)
         } else {
-          await createWorkflowStep(initialWorkflow.id, s.step_type, s.name, i, s.config)
+          const created = await createWorkflowStep(initialWorkflow.id, s.step_type, s.name, i, s.config)
+          if (created) idMap.set(s.id, created.id)
         }
+      }
+
+      if (idMap.size > 0) {
+        setNodes(nds => nds.map(n => idMap.has(n.id) ? { ...n, id: idMap.get(n.id)! } : n))
+        setEdges(eds => eds.map(e => {
+          const newE = { ...e }
+          if (idMap.has(newE.source)) newE.source = idMap.get(newE.source)!
+          if (idMap.has(newE.target)) newE.target = idMap.get(newE.target)!
+          // Update the edge ID as well to avoid referencing old draft IDs
+          newE.id = `e-${newE.source}-${newE.sourceHandle ? newE.sourceHandle + '-' : ''}${newE.target}`
+          return newE
+        }))
+        
+        // Also update steps/triggers state
+        setSteps(prev => prev.map(s => idMap.has(s.id) ? { ...s, id: idMap.get(s.id)! } : s))
+        setTriggers(prev => prev.map(t => idMap.has(t.id) ? { ...t, id: idMap.get(t.id)! } : t))
       }
 
       setSaveState("saved")

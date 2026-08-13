@@ -10,11 +10,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
   useEffect(() => {
+    // Only access localStorage on client side mount
     const saved = localStorage.getItem("zapify:sidebar-collapsed")
-    if (saved === "true") {
-      // Small timeout to allow hydration to complete before updating state
-      setTimeout(() => setIsCollapsed(true), 0)
+    if (saved === "true" && !isCollapsed) {
+      queueMicrotask(() => setIsCollapsed(true))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const toggleSidebar = () => {

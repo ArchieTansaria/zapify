@@ -21,8 +21,8 @@ export default function WorkflowDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadWorkflow = async () => {
-    setIsLoading(true)
+  const loadWorkflow = async (background = false) => {
+    if (!background) setIsLoading(true)
     setError(null)
     try {
       const data = await fetchWorkflow(id)
@@ -43,7 +43,7 @@ export default function WorkflowDetailPage() {
       console.error(err)
       setError(err instanceof Error ? err.message : String(err) || "Failed to load workflow")
     } finally {
-      setIsLoading(false)
+      if (!background) setIsLoading(false)
     }
   }
 
@@ -100,7 +100,7 @@ export default function WorkflowDetailPage() {
   return (
     <WorkflowEditor 
       initialWorkflow={workflow} 
-      onSaved={loadWorkflow} 
+      onSaved={() => loadWorkflow(true)} 
     />
   )
 }
