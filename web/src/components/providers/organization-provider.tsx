@@ -70,6 +70,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         localStorage.removeItem(ORG_STORAGE_KEY)
       }
       setIsLoading(false)
+    }).catch((err) => {
+      console.error("Failed to fetch organizations:", err)
+      if (isMounted) setIsLoading(false)
     })
 
     return () => {

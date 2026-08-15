@@ -2,9 +2,18 @@ import { memo } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { Split } from 'lucide-react'
 
-export const ConditionalNode = memo(({ data, selected }: any) => {
+import { getStatusStyles } from './utils'
+
+export const ConditionalNode = memo(({ data, selected }: { data: { status?: string, label?: string, description?: string }; selected?: boolean }) => {
+  const { border, iconClass, BadgeIcon } = getStatusStyles(data.status, selected)
+
   return (
-    <div className={`px-4 py-3 shadow-sm rounded-xl bg-card border ${selected ? 'border-primary ring-1 ring-primary/20 shadow-md' : 'border-border'} min-w-[200px]`}>
+    <div className={`px-4 py-3 shadow-sm rounded-xl border ${border} min-w-[200px] relative`}>
+      {BadgeIcon && (
+        <div className={`absolute -top-2 -right-2 bg-background rounded-full p-0.5 border shadow-sm ${iconClass}`}>
+          <BadgeIcon className="w-4 h-4" />
+        </div>
+      )}
       <Handle 
         type="target" 
         position={Position.Top} 
@@ -12,7 +21,7 @@ export const ConditionalNode = memo(({ data, selected }: any) => {
       />
       
       <div className="flex items-center gap-3 mb-2">
-        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-orange-500/10 text-orange-500 border border-orange-500/20">
+        <div className={`flex items-center justify-center h-8 w-8 rounded-lg bg-orange-500/10 border ${data.status ? iconClass : 'text-orange-500 border-orange-500/20'}`}>
           <Split className="h-4 w-4" />
         </div>
         <div>

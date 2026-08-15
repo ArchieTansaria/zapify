@@ -1,4 +1,4 @@
-import { validateAndSerializeGraph } from "../src/app/app/workflows/lib/validation.ts"
+import { validateAndSerializeGraph } from "../../src/app/app/workflows/lib/validation.ts"
 
 function mockNodes(ids) {
   return ids.map((id, index) => {

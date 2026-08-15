@@ -6,6 +6,7 @@ import { WorkflowStep, WorkflowTrigger } from '@/lib/graphql/workflows'
 interface WorkflowInspectorProps {
   selectedNode: Node | null
   canEdit: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSaveNode: (nodeId: string, data: any) => void
   onDeleteNode: (nodeId: string) => void
   onClose: () => void

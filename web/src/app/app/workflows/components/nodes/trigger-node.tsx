@@ -2,11 +2,20 @@ import { memo } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { Zap } from 'lucide-react'
 
-export const TriggerNode = memo(({ data, selected }: any) => {
+import { getStatusStyles } from './utils'
+
+export const TriggerNode = memo(({ data, selected }: { data: { status?: string, label?: string, description?: string }; selected?: boolean }) => {
+  const { border, iconClass, BadgeIcon } = getStatusStyles(data.status, selected)
+
   return (
-    <div className={`px-4 py-3 shadow-md rounded-xl bg-card border ${selected ? 'border-primary ring-1 ring-primary/20' : 'border-border'} min-w-[200px]`}>
+    <div className={`px-4 py-3 shadow-md rounded-xl border ${border} min-w-[200px] relative`}>
+      {BadgeIcon && (
+        <div className={`absolute -top-2 -right-2 bg-background rounded-full p-0.5 border ${iconClass}`}>
+          <BadgeIcon className="w-4 h-4" />
+        </div>
+      )}
       <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 text-primary">
+        <div className={`flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 ${data.status ? iconClass : 'text-primary'}`}>
           <Zap className="h-4 w-4" />
         </div>
         <div>

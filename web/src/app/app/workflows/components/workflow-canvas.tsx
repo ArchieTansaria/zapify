@@ -6,13 +6,13 @@ import {
   MiniMap,
   Controls,
   Background,
-  addEdge,
   Connection,
   Edge,
   Node,
   BackgroundVariant,
   OnNodesChange,
-  OnEdgesChange
+  OnEdgesChange,
+  ReactFlowInstance
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -39,10 +39,11 @@ interface WorkflowCanvasProps {
   onConnect: (connection: Connection | Edge) => void
   onAddNode?: (type: string, position: { x: number, y: number }, isTrigger: boolean) => void
   onDeleteEdge?: (edgeId: string) => void
+  isReadOnly?: boolean
 }
 
-export function WorkflowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onAddNode, onDeleteEdge }: WorkflowCanvasProps) {
-  const [rfInstance, setRfInstance] = useState<any>(null)
+export function WorkflowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onAddNode, onDeleteEdge, isReadOnly = false }: WorkflowCanvasProps) {
+  const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
 
   const edgesWithData = edges.map(edge => ({
     ...edge,
@@ -68,12 +69,14 @@ export function WorkflowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onC
   )
 
   const onDragOver = useCallback((event: React.DragEvent) => {
+    if (isReadOnly) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
-  }, []);
+  }, [isReadOnly]);
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
+      if (isReadOnly) return;
       event.preventDefault();
 
       if (!rfInstance || !onAddNode) return;
@@ -92,14 +95,14 @@ export function WorkflowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onC
 
       onAddNode(type, position, isTriggerStr === 'true');
     },
-    [rfInstance, onAddNode],
+    [rfInstance, onAddNode, isReadOnly],
   );
 
   const hasTrigger = nodes.some(n => n.type === 'triggerNode')
 
   return (
     <div className="w-full h-full flex-grow relative" style={{ minHeight: '600px' }} onDragOver={onDragOver} onDrop={onDrop}>
-      {!hasTrigger && (
+      {!hasTrigger && !isReadOnly && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center justify-center pointer-events-none">
           <div className="bg-background/95 backdrop-blur border p-6 rounded-lg shadow-sm text-center max-w-sm">
             <h3 className="font-semibold text-lg mb-2">No trigger configured</h3>
@@ -111,27 +114,30 @@ export function WorkflowCanvas({ nodes, edges, onNodesChange, onEdgesChange, onC
       )}
       <ReactFlow
         nodes={nodes}
-        edges={edgesWithData}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={handleConnect}
+        edges={isReadOnly ? edges : edgesWithData}
+        onNodesChange={isReadOnly ? undefined : onNodesChange}
+        onEdgesChange={isReadOnly ? undefined : onEdgesChange}
+        onConnect={isReadOnly ? undefined : handleConnect}
         onInit={setRfInstance}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        defaultEdgeOptions={{ type: 'deletable' }}
+        defaultEdgeOptions={isReadOnly ? { type: 'default' } : { type: 'deletable' }}
+        nodesDraggable={!isReadOnly}
+        nodesConnectable={!isReadOnly}
+        elementsSelectable={!isReadOnly}
         fitView
         fitViewOptions={{ maxZoom: 1 }}
         className="bg-background"
         colorMode="dark"
       >
-        <Controls />
+        {!isReadOnly && <Controls />}
         <MiniMap 
           nodeStrokeColor={(n) => {
             if (n.type === 'triggerNode') return '#3b82f6'
             if (n.type === 'conditionalNode') return '#f97316'
             return '#71717a'
           }}
-          nodeColor={(n) => {
+          nodeColor={() => {
             return 'transparent'
           }}
           maskColor="rgba(0,0,0,0.2)"

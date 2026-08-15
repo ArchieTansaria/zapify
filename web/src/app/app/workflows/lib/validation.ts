@@ -101,6 +101,7 @@ export function validateAndSerializeGraph(nodes: Node[], edges: Edge[]): { steps
       workflow_id: n.data.workflow_id as string,
       trigger_type: n.data.trigger_type as string,
       is_active: n.data.is_active as boolean,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       config: { ...(n.data.config as any), _ui: { position: n.position } }
     };
   });
@@ -111,6 +112,7 @@ export function validateAndSerializeGraph(nodes: Node[], edges: Edge[]): { steps
   // Build the steps array
   const steps: WorkflowStep[] = stepNodes.map((n, index) => {
     const outs = outEdges.get(n.id) || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const config = { ...(n.data.config as any) };
 
     if (n.type === 'conditionalNode') {

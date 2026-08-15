@@ -12,6 +12,7 @@ export function buildGraphFromBackend(
 
   // 1. Map Triggers
   triggers.forEach((trigger) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const position = (trigger.config as any)?._ui?.position || { x: 250, y: currentY }
     currentY += 100
 
@@ -32,6 +33,7 @@ export function buildGraphFromBackend(
   const sortedSteps = [...steps].sort((a, b) => a.step_order - b.step_order)
 
   sortedSteps.forEach((step) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const position = (step.config as any)?._ui?.position || { x: 250, y: currentY }
     currentY += 100
 
@@ -69,6 +71,7 @@ export function buildGraphFromBackend(
   // Apply conditional branch tail logic
   sortedSteps.forEach((step) => {
     if (step.step_type === 'conditional_branch') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const config = step.config as any;
       const trueIdx = getIndex(config?.if_true);
       const falseIdx = getIndex(config?.if_false);
@@ -115,6 +118,7 @@ export function buildGraphFromBackend(
   // Generate Conditional Edges
   sortedSteps.forEach((step) => {
     if (step.step_type === 'conditional_branch') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const config = step.config as any
       if (config?.if_true) {
         edges.push({

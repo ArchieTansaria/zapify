@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { generateJWT } from './utils/manual_jwt.js';
+import { generateJWT } from '../../utils/manual_jwt.js';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
